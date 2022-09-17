@@ -11,7 +11,26 @@ use crate::markdown::markdown_to_html;
 pub use crate::markdown::Rendered;
 pub use context::RenderContext;
 
+use libs::regex;
+use libs::regex::RegexBuilder;
+
+fn parse_wiki_style_links(content: &str) -> String {
+    let regex_link_only = RegexBuilder::new(r"\[\[([^|]+)\]\]").build().unwrap();
+    let regex_link_with_name = RegexBuilder::new(r"\[\[([^|]+)(|[^\]]+?)?\]\]").build().unwrap();
+    let foo = regex_link_only.replace_all(content, |caps: &regex::Captures| {
+        format!("[{}](@/{})", &caps[1].trim(), &caps[1].trim())
+    });
+    regex_link_with_name
+        .replace_all(&foo.to_string(), |caps: &regex::Captures| {
+            let mut title = caps[2].trim().to_string();
+            title.remove(0); // Remove the "|"
+            format!("[{}](@/{})", title.trim(), &caps[1].trim())
+        })
+        .to_string()
+}
 pub fn render_content(content: &str, context: &RenderContext) -> Result<markdown::Rendered> {
+    let content_str = parse_wiki_style_links(content);
+    let content = &content_str;
     // avoid parsing the content if needed
     if !content.contains("{{") && !content.contains("{%") {
         return markdown_to_html(content, context, Vec::new());
@@ -34,4 +53,14 @@ pub fn render_content(content: &str, context: &RenderContext) -> Result<markdown
     // }
 
     Ok(html_context)
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    #[test]
+    fn test_parse_wiki_style_links() {
+        assert_eq!(parse_wiki_style_links("[[about|About]]"), "[About](@/about)");
+        assert_eq!(parse_wiki_style_links("[[about]]"), "[about](@/about)");
+    }
 }
