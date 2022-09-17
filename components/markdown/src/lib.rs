@@ -58,9 +58,90 @@ pub fn render_content(content: &str, context: &RenderContext) -> Result<markdown
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    use tera::Tera;
+
+    use config::Config;
+    use front_matter::InsertAnchor;
+
     #[test]
     fn test_parse_wiki_style_links() {
         assert_eq!(parse_wiki_style_links("[[about|About]]"), "[About](@/about)");
         assert_eq!(parse_wiki_style_links("[[about]]"), "[about](@/about)");
+    }
+    #[test]
+    fn can_make_wiki_style_links() {
+        let mut permalinks_ctx = HashMap::new();
+        permalinks_ctx.insert("about".to_string(), "/about".to_string());
+
+        let tera_ctx = Tera::default();
+        let config = Config::default_for_test();
+        let context = RenderContext::new(
+            &tera_ctx,
+            &config,
+            &config.default_language,
+            "",
+            &permalinks_ctx,
+            InsertAnchor::None,
+        );
+        let res = render_content(r#"[[about]]"#, &context).unwrap();
+        assert!(res.body.contains(r#"<p><a href="/about">about</a></p>"#));
+    }
+    #[test]
+    fn can_make_wiki_style_links_with_relative_link() {
+        let mut permalinks_ctx = HashMap::new();
+        permalinks_ctx.insert("pages/about".to_string(), "pages/about".to_string());
+
+        let tera_ctx = Tera::default();
+        let config = Config::default_for_test();
+        let context = RenderContext::new(
+            &tera_ctx,
+            &config,
+            &config.default_language,
+            "",
+            &permalinks_ctx,
+            InsertAnchor::None,
+        );
+        let res = render_content(r#"[[pages/about|About Me]]"#, &context).unwrap();
+        println!("{}", res.body);
+        assert!(res.body.contains(r#"<p><a href="pages/about">About Me</a></p>"#));
+    }
+    #[test]
+    fn can_make_wiki_style_links_with_link_name() {
+        let mut permalinks_ctx = HashMap::new();
+        permalinks_ctx.insert("about".to_string(), "https://vincent.is/about".to_string());
+
+        let tera_ctx = Tera::default();
+        let config = Config::default_for_test();
+        let context = RenderContext::new(
+            &tera_ctx,
+            &config,
+            &config.default_language,
+            "",
+            &permalinks_ctx,
+            InsertAnchor::None,
+        );
+        let res = render_content(r#"[[about|About Me]]"#, &context).unwrap();
+        println!("{}", res.body);
+        assert!(res.body.contains(r#"<p><a href="https://vincent.is/about">About Me</a></p>"#));
+    }
+    #[test]
+    fn wiki_style_link_nonnexistant_still_works() {
+        let tera_ctx = Tera::default();
+        let permalinks_ctx = HashMap::new();
+        let config = Config::default_for_test();
+        let context = RenderContext::new(
+            &tera_ctx,
+            &config,
+            &config.default_language,
+            "",
+            &permalinks_ctx,
+            InsertAnchor::None,
+        );
+        let res = render_content("[[about]]", &context);
+        assert!(res.is_err());
+        let res = render_content("[[about|About]]", &context);
+        assert!(res.is_err());
     }
 }
